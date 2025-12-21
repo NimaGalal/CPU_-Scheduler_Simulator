@@ -2,8 +2,10 @@ package org.example;
 import java.io.IOException;
 import java.nio.file.*;
 import org.json.*;
-import org.json.JSONObject;
+
 import java.util.*;
+
+import static java.lang.Math.max;
 
 
 public class Main {
@@ -166,63 +168,103 @@ public class Main {
         private void getAgingInterval(int agingInterval) {
             this.agingInterval = agingInterval;
         }
-        public SchedulerResult runPriority() {
 
-            SchedulerResult result = new SchedulerResult("Priority Scheduling");
-            ArrayList<Process> readyList = new ArrayList<>();
-            for (Process p : processes) {
-                readyList.add(p.copy());
-            }
+    public SchedulerResult runPriority() {
 
-            int currentTime = 0;
-            int completed = 0;
-            int n = readyList.size();
+        SchedulerResult result = new SchedulerResult("Priority Scheduling");
 
-            while (completed < n) {
-
-                Process highestPriority = null;
-
-                for (Process p : readyList) {
-                    if (p.getArrivalTime() <= currentTime && !p.isComplete()) {
-                        if (highestPriority == null ||
-                                p.getPriority() < highestPriority.getPriority()) {
-                            highestPriority = p;
-                        }
-                    }
-                }
-
-                if (highestPriority == null) {
-                    currentTime++;
-                    continue;
-                }
-
-                highestPriority.execute(1);
-                result.addToExecutionOrder(highestPriority.getName());
-                currentTime++;
-
-                if (highestPriority.isComplete()) {
-                    highestPriority.setCompletionTime(currentTime);
-
-                    int tat = currentTime - highestPriority.getArrivalTime();
-                    int wt = tat - highestPriority.getBurstTime();
-
-                    highestPriority.setTurnaroundTime(tat);
-                    highestPriority.setWaitingTime(wt);
-
-                    result.addProcessTimes(
-                            highestPriority.getName(),
-                            wt,
-                            tat
-                    );
-
-                    completed++;
-                }
-            }
-
-            result.calculateAverages();
-            return result;
+        List<Process> list = new ArrayList<>();
+        for (Process p : processes) {
+            list.add(p.copy());
         }
 
+        int n = list.size();
+        int completed = 0;
+        int currentTime = 0;
+
+        Process lastRunning = null;
+
+        Map<Process, Integer> lastReadyTime = new HashMap<>();
+        for (Process p : list) {
+            lastReadyTime.put(p, p.getArrivalTime());
+        }
+
+        while (completed < n) {
+
+            Process current = null;
+
+            for (Process p : list) {
+                if (p.getArrivalTime() <= currentTime && !p.isComplete()) {
+                    if (current == null ||
+                        p.getPriority() < current.getPriority() ||
+                        (p.getPriority() == current.getPriority() &&
+                        p.getArrivalTime() < current.getArrivalTime())) {
+                        current = p;
+                    }
+                }
+            }
+
+            if (current == null) {
+                currentTime++;
+                lastRunning = null;
+                continue;
+            }
+
+            if (lastRunning != null && lastRunning != current) {
+                currentTime += contextSwitch;
+            }
+
+            current.execute(1);
+            if (result.executionOrder.isEmpty() || !result.executionOrder.get(result.executionOrder.size()-1).equals(current.getName())) {
+                result.addToExecutionOrder(current.getName());
+            }
+            currentTime++;
+
+            
+            for (Process p : list) {
+                if (p != current &&
+                    p.getArrivalTime() <= currentTime &&
+                    !p.isComplete()) {
+
+                    int waited = currentTime - lastReadyTime.get(p);
+
+                    if (waited >= agingInterval) {
+                        p.setPriority(Math.max(1, p.getPriority() - 1));
+                        lastReadyTime.put(p, currentTime);
+                    }
+                }
+            }
+            if (current.isComplete()) {
+                current.setCompletionTime(currentTime);
+
+                int tat = currentTime - current.getArrivalTime();
+                int wt = tat - current.getBurstTime();
+
+                current.setTurnaroundTime(tat);
+                current.setWaitingTime(wt);
+
+                result.addProcessTimes(
+                        current.getName(),
+                        wt,
+                        tat
+                );
+
+                completed++;
+            }
+
+            if (!current.isComplete()) {
+                lastReadyTime.put(current, currentTime);
+            }
+
+            lastRunning = current;
+        }
+
+        result.calculateAverages();
+        return result;
+    }
+
+
+        
     }
     public static class SchedulerResult {
 
@@ -452,9 +494,16 @@ public class Main {
 
 
     static void main() throws IOException {
-        JSONparser TestCase = new JSONparser("c:\\\\Users\\\\Omar Awad\\\\Downloads\\\\Compressed\\\\test_cases_updated\\\\test_cases\\\\Other_Schedulers\\\\test_2.json") ;
-        Scheduler scheduler = TestCase.getScheduler() ;
-        SchedulerResult result = scheduler.runPriority();
-        result.printResults();
+        // String pwd = System.getProperty("user.dir");
+        // System.out.println(pwd);
+        for(int i = 1 ; i <= 6 ; i++) {
+            System.out.println("----------------- Test Case " + i + " -----------------");
+            JSONparser TestCase = new JSONparser("src\\\\test\\\\Other_Schedulers\\\\test_" + i + ".json");
+            Scheduler scheduler = TestCase.getScheduler() ;
+            SchedulerResult result = scheduler.runPriority();
+            result.printResults();
+            System.out.println("-------------------------------------------------");
+            System.out.println("-------------------------------------------------");
+        }
     }
 }
