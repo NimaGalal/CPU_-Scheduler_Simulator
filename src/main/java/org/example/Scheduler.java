@@ -16,6 +16,14 @@ public class Scheduler {
             processes = new ArrayList<>();
         }
 
+        public Scheduler(List<Process> processes2, int contextSwitch2, int rrQuantum2, int agingInterval2) {
+            this.processes = new ArrayList<>(processes2);
+            this.contextSwitch = contextSwitch2;
+            this.rrQuantum = rrQuantum2;
+            this.agingInterval = agingInterval2;
+            this.numberOfProcesses = processes2.size();
+        }
+
         void addProcess(Process p) {
             processes.add(p);
             numberOfProcesses++;
@@ -138,8 +146,5 @@ public class Scheduler {
 
         result.calculateAverages();
         return result;
-    }
-
-
-        
-    }
+    }        
+}
